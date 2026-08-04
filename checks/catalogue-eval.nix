@@ -20,6 +20,10 @@ let
 
   full = evalWith { players = [ "vlc" ]; };
 
+  allPlugins = [ "gst-plugins-base" "gst-plugins-good" "gst-plugins-bad" "gst-plugins-ugly" "gst-libav" "gst-plugin-pipewire" ];
+  fullPlugins = evalWith { plugins = allPlugins; };
+  everything = evalWith { players = [ "vlc" ]; plugins = allPlugins; };
+
   has = list: item: lib.elem item list;
 
   results = {
@@ -29,7 +33,7 @@ let
     "players alone resolves the one entry, no AUR" =
       full.archPackages == [ "vlc" ] && full.aurPackages == [ ];
 
-    "the whole catalogue is one entry (1 players = 1 selected)" =
+    "the players selection alone is one entry (1 players = 1 selected)" =
       lib.length full.selected == 1;
 
     "vlc has a nixpkgs equivalent -- nothing surfaces as unavailable on NixOS" =
@@ -49,6 +53,32 @@ let
 
     "a name that was dropped outright (zathura -- never moved, never re-added) is rejected the same way" =
       (builtins.tryEval (builtins.deepSeq (evalWith { players = [ "zathura" ]; }).players true)).success == false;
+
+    # ── plugins: the GStreamer surface ────────────────────────────────────────────────────
+    "all six plugins resolve, no AUR" =
+      lib.length fullPlugins.archPackages == 6 && fullPlugins.aurPackages == [ ];
+
+    "the plugins selection alone is six entries (6 plugins = 6 selected)" =
+      lib.length fullPlugins.selected == 6;
+
+    "gst-plugin-pipewire has no nixpkgs equivalent -- it surfaces as unavailable on NixOS, not silently dropped" =
+      fullPlugins.unavailableOnNixos == [ "gst-plugin-pipewire" ];
+
+    "the other five plugins DO have nixpkgs equivalents -- only pipewire's sink is null" =
+      lib.length fullPlugins.nixosPackages == 5
+      && !(has fullPlugins.nixosPackages "gst-plugin-pipewire");
+
+    "nixosPackages carries the real gst_all_1 dotted attribute paths" =
+      has fullPlugins.nixosPackages "gst_all_1.gst-plugins-base"
+      && has fullPlugins.nixosPackages "gst_all_1.gst-libav";
+
+    "players and plugins compose together in one selection (1 + 6 = 7)" =
+      lib.length everything.selected == 7
+      && has everything.archPackages "vlc"
+      && has everything.archPackages "gst-libav";
+
+    "a name never in the plugins catalogue is rejected at eval time, not silently ignored" =
+      (builtins.tryEval (builtins.deepSeq (evalWith { plugins = [ "gst-plugins-ninja" ]; }).plugins true)).success == false;
   };
 
   failed = lib.attrNames (lib.filterAttrs (_: passed: !passed) results);

@@ -1,9 +1,11 @@
 #
-# nixmedia — graphical media consumption, declared: what a person plays in a window. Every tool
-# that has no display mode, or a display mode that is not its default, has moved to nixsh. See
-# lib/media.nix's own header for the placement rule itself (the display-mode-and-default test),
-# the worked examples that shaped it, and the one deliberate exception (mpv, filed in nixsh by
-# stated use rather than by its default).
+# nixmedia — graphical media consumption, declared: what a person plays in a window (`players`),
+# plus the GStreamer plugin/codec libraries (`plugins`) those players -- and any other GStreamer
+# app a host happens to run -- load to gain format support. Every TOOL that has no display mode,
+# or a display mode that is not its default, has moved to nixsh; a plugin is not a tool at all and
+# is tested a different way. See lib/media.nix's own header for both placement rules, the worked
+# examples that shaped `players`, and the one deliberate exception (mpv, filed in nixsh by stated
+# use rather than by its default).
 #
 # SCOPE test against the two neighboring repos, same shape as nixoffice's own for documents: this
 # module owns what a person CONSUMES on a screen. Recording your own screen is nixrecord's
@@ -23,23 +25,25 @@ let
 
   selected = lib.flatten [
     (map (k: cat.players.${k}) cfg.players)
+    (map (k: cat.plugins.${k}) cfg.plugins)
   ];
 in
 {
   options.nixmedia = {
     players = mkGroup "graphical media players" cat.players;
+    plugins = mkGroup "GStreamer plugin/codec libraries" cat.plugins;
 
     selected = lib.mkOption {
       type = lib.types.listOf lib.types.attrs;
       readOnly = true;
       internal = true;
       description = ''
-        The resolved catalogue entries for every name in `players`, in one flat list -- the
-        canonical "what did this host actually ask for" a platform backend consumes. One group
-        today because `players` (vlc) is the whole catalogue, not a simplification of a bigger
-        one -- see lib/media.nix's own header. A second group is opened only once a second KIND of
-        graphical entry (an image viewer, a comics reader) is actually added, not pre-declared
-        empty ahead of that.
+        The resolved catalogue entries for every name in `players` and `plugins` combined, in one
+        flat list -- the canonical "what did this host actually ask for" a platform backend
+        consumes. Two groups, tested two different ways -- see lib/media.nix's own header for why
+        a GStreamer plugin does not fit the `players` test at all. A third group is opened only
+        once a third KIND of entry (an image viewer, a comics reader -- still `players`, by that
+        test) genuinely does not fit either shape, not pre-declared empty ahead of that.
       '';
     };
 
@@ -55,9 +59,10 @@ in
       description = ''
         Selections that live in the AUR rather than an official repo, kept SEPARATE because
         `pacman -S` cannot resolve them -- it fails the whole transaction with "target not found",
-        which takes the rest of the converge down with it. Empty today (vlc is an official-repo
-        package on both platforms) -- kept as its own list rather than folded into `archPackages`
-        because the next addition is not guaranteed to be. Wire it regardless:
+        which takes the rest of the converge down with it. Empty today (every catalogued entry --
+        vlc and the six-entry `plugins` group alike -- is an official-repo package on Arch) --
+        kept as its own list rather than folded into `archPackages` because the next addition is
+        not guaranteed to be. Wire it regardless:
 
           nixarch.packages.aur = config.nixmedia.aurPackages;
 
