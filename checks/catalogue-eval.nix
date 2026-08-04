@@ -2,8 +2,7 @@
 # — the same "Nix inspecting Nix" tier nixrecord's own checks/config-rendering.nix is (see that
 # file's header for why `nix flake check` needs this at all: it does not evaluate
 # `nixosModules`/`systemManagerModules` on its own, so a green check without a file like this one
-# would prove nothing but flake syntax). Neither nixfont nor nixoffice — the two repos this one is
-# modelled on — carries a `checks` output; this is the gap being closed here.
+# would prove nothing but flake syntax).
 #
 # Deliberately pkgs-FREE beyond `pkgs.emptyFile` for the derivation shell: this only proves the
 # SELECTION/resolution logic (which category a key belongs to, the arch/AUR split, which nixpkgs
@@ -19,15 +18,7 @@ let
     modules = [ ../modules/nixmedia.nix { nixmedia = selection; } ];
   }).config.nixmedia;
 
-  full = evalWith {
-    base = [ "ffmpeg" "mpv" ];
-    players = [ "vlc" "cmus" ];
-    terminal = [ "yazi" "chafa" "timg" ];
-    viewers = [ "zathura" "zathura-pdf-poppler" ];
-    acquire = [ "yt-dlp" ];
-  };
-
-  baseOnly = evalWith { base = [ "ffmpeg" "mpv" ]; };
+  full = evalWith { players = [ "vlc" ]; };
 
   has = list: item: lib.elem item list;
 
@@ -35,34 +26,29 @@ let
     "empty selection resolves to nothing selected" =
       (evalWith { }).selected == [ ];
 
-    "base tier alone resolves both arch names, no AUR" =
-      baseOnly.archPackages == [ "ffmpeg" "mpv" ] && baseOnly.aurPackages == [ ];
+    "players alone resolves the one entry, no AUR" =
+      full.archPackages == [ "vlc" ] && full.aurPackages == [ ];
 
-    "every category contributes to `selected` (2 base + 2 players + 3 terminal + 2 viewers + 1 acquire = 10)" =
-      lib.length full.selected == 10;
+    "the whole catalogue is one entry (1 players = 1 selected)" =
+      lib.length full.selected == 1;
 
-    "timg is the AUR entry in `terminal`, not chafa or yazi" =
-      has full.aurPackages "timg" && !(has full.aurPackages "chafa") && !(has full.aurPackages "yazi");
+    "vlc has a nixpkgs equivalent -- nothing surfaces as unavailable on NixOS" =
+      full.unavailableOnNixos == [ ];
 
-    "zathura-pdf-poppler has no nixpkgs equivalent -- surfaced, not silently dropped" =
-      has full.unavailableOnNixos "zathura-pdf-poppler";
-
-    "zathura ITSELF does have a nixpkgs equivalent -- only its Arch-side backend package does not" =
-      !(has full.unavailableOnNixos "zathura");
-
-    "nixosPackages carries the mapped selections' dotted nixpkgs names, and only those" =
-      has full.nixosPackages "ffmpeg"
-      && has full.nixosPackages "yt-dlp"
-      && !(has full.nixosPackages "zathura-pdf-poppler");
+    "nixosPackages carries vlc's dotted nixpkgs name, and only that" =
+      full.nixosPackages == [ "vlc" ];
 
     "archPackages and aurPackages never share a name -- the pacman transaction footgun this split exists to avoid" =
       lib.intersectLists full.archPackages full.aurPackages == [ ];
 
-    "selecting the same key from two different categories cannot happen -- the enum type is per-category, catching a typo'd cross-category reference at eval time" =
+    "a name that left the catalogue (cmus -- moved to nixsh) is rejected at eval time, not silently ignored" =
       # `evalModules` is lazy -- `tryEval` alone only forces WHNF (the attrset exists), not the
       # type-checked VALUE inside it. `deepSeq` forces all the way through, which is what actually
-      # runs the listOf-enum merge/check that rejects "vlc" from the `base` category.
-      (builtins.tryEval (builtins.deepSeq (evalWith { base = [ "vlc" ]; }).base true)).success == false;
+      # runs the listOf-enum merge/check that rejects "cmus" now that `players` holds only vlc.
+      (builtins.tryEval (builtins.deepSeq (evalWith { players = [ "cmus" ]; }).players true)).success == false;
+
+    "a name that was dropped outright (zathura -- never moved, never re-added) is rejected the same way" =
+      (builtins.tryEval (builtins.deepSeq (evalWith { players = [ "zathura" ]; }).players true)).success == false;
   };
 
   failed = lib.attrNames (lib.filterAttrs (_: passed: !passed) results);

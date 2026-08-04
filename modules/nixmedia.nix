@@ -1,18 +1,15 @@
 #
-# nixmedia — media consumption, declared: what a person plays, browses, reads, or fetches, plus
-# the ffmpeg/mpv pair every machine wants regardless of whether "media" is its job.
+# nixmedia — graphical media consumption, declared: what a person plays in a window. Every tool
+# that has no display mode, or a display mode that is not its default, has moved to nixsh. See
+# lib/media.nix's own header for the placement rule itself (the display-mode-and-default test),
+# the worked examples that shaped it, and the one deliberate exception (mpv, filed in nixsh by
+# stated use rather than by its default).
 #
-# SCOPE test, same shape as nixoffice's own: this module owns what a person CONSUMES. Recording
-# your own screen is nixrecord's (production, an OBS config rather than a package
-# list); streaming that desktop session to another box over the network is nixremote's (it already
-# owns sunshine and moonlight). Neither is duplicated here — see lib/media.nix's own header for
-# why that boundary is drawn where it is, not just stated.
-#
-# THE INCIDENT `base` EXISTS TO PREVENT: mpv reached a real host once purely as a transitive
-# dependency of something else, worked for months, then vanished the moment that something else
-# was reconfigured — discovered only the next time someone actually tried to watch a file. `base`
-# (ffmpeg, mpv) is the fix: declared explicitly, on every consumer, never left to arrive as a side
-# effect of wanting something unrelated.
+# SCOPE test against the two neighboring repos, same shape as nixoffice's own for documents: this
+# module owns what a person CONSUMES on a screen. Recording your own screen is nixrecord's
+# (production, an OBS config that renders profile/scene files, not a package list); streaming that
+# desktop session to another box over the network is nixremote's (it already owns sunshine and
+# moonlight). Neither is duplicated here.
 { config, lib, ... }:
 let
   cfg = config.nixmedia;
@@ -25,33 +22,24 @@ let
   };
 
   selected = lib.flatten [
-    (map (k: cat.base.${k}) cfg.base)
     (map (k: cat.players.${k}) cfg.players)
-    (map (k: cat.terminal.${k}) cfg.terminal)
-    (map (k: cat.viewers.${k}) cfg.viewers)
-    (map (k: cat.acquire.${k}) cfg.acquire)
   ];
 in
 {
   options.nixmedia = {
-    base = mkGroup "base tools (wanted on every machine, media-specific or not)" cat.base;
-    players = mkGroup "audio/video players" cat.players;
-    terminal = mkGroup "terminal browsing and preview tools" cat.terminal;
-    viewers = mkGroup "document/reading viewers" cat.viewers;
-    acquire = mkGroup "acquisition tools" cat.acquire;
+    players = mkGroup "graphical media players" cat.players;
 
     selected = lib.mkOption {
       type = lib.types.listOf lib.types.attrs;
       readOnly = true;
       internal = true;
       description = ''
-        The resolved catalogue entries for every name in `base`/`players`/`terminal`/`viewers`/
-        `acquire`, in one flat list — the canonical "what did this host actually ask for" a
-        platform backend consumes. Both backends derive their package lists from THIS, not by
-        re-categorizing selections through Arch's own AUR/pacman split the way nixfont's own
-        `selected` option's docstring warns against — a package that is AUR-only on Arch is not
-        AUR-only (or missing) on NixOS, and filtering by an Arch-only distinction would silently
-        drop it there.
+        The resolved catalogue entries for every name in `players`, in one flat list -- the
+        canonical "what did this host actually ask for" a platform backend consumes. One group
+        today because `players` (vlc) is the whole catalogue, not a simplification of a bigger
+        one -- see lib/media.nix's own header. A second group is opened only once a second KIND of
+        graphical entry (an image viewer, a comics reader) is actually added, not pre-declared
+        empty ahead of that.
       '';
     };
 
@@ -66,8 +54,10 @@ in
       readOnly = true;
       description = ''
         Selections that live in the AUR rather than an official repo, kept SEPARATE because
-        `pacman -S` cannot resolve them — it fails the whole transaction with "target not found",
-        which takes the rest of the converge down with it. Wire them to the AUR side:
+        `pacman -S` cannot resolve them -- it fails the whole transaction with "target not found",
+        which takes the rest of the converge down with it. Empty today (vlc is an official-repo
+        package on both platforms) -- kept as its own list rather than folded into `archPackages`
+        because the next addition is not guaranteed to be. Wire it regardless:
 
           nixarch.packages.aur = config.nixmedia.aurPackages;
 
@@ -81,13 +71,12 @@ in
       readOnly = true;
       description = ''
         Selections' nixpkgs attribute names (dotted paths), for introspection. The NixOS backend
-        (modules/nixos.nix) does NOT install straight off this list — it force-evaluates each
+        (modules/nixos.nix) does NOT install straight off this list -- it force-evaluates each
         name against the real `pkgs` first, because a name appearing here can still be a STALE
         mapping (nixpkgs converts a renamed attribute to `throw "... renamed to ..."`, which keeps
-        the key present and only breaks when the value is actually forced — see that module's own
+        the key present and only breaks when the value is actually forced -- see that module's own
         header). A name in `nixosPackages` is therefore a declared intent, not an install
-        guarantee; `nix flake check`-time confidence about the mapping itself is
-        experiments/validate-nixpkgs-names.nix's job, run against a real nixpkgs.
+        guarantee.
       '';
     };
 

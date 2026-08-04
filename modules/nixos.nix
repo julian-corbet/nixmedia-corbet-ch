@@ -17,8 +17,8 @@ let
   # Filter `nixmedia.selected` directly — NOT `nixosPackages` or `archPackages` — for the same
   # reason nixfont's own nixos.nix backend does: neither of those two lists is the platform-
   # neutral "what did this host actually ask for" (archPackages is deliberately Arch's own
-  # pacman/AUR split, e.g. timg is withheld from it because it needs an AUR helper on Arch; that
-  # distinction means nothing on NixOS, which has no AUR at all).
+  # pacman/AUR split — an AUR-only entry is withheld from it because it needs an AUR helper on
+  # Arch; that distinction means nothing on NixOS, which has no AUR at all).
   named = lib.filter (t: t.nixpkgs != null) cfg.selected;
 
   evaluated = map

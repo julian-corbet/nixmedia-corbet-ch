@@ -7,7 +7,8 @@ the result.
 A study earns its place here once it changed a decision in the main project. See the main
 [README](../README.md) for the project itself.
 
-| File | Finding |
-|---|---|
-| `zathura-plugin-bundling.md` | nixpkgs's `zathura` attribute already bundles the pdf-poppler (and djvu/ps/cb) plugin by default; Arch's `zathura` ships with no backend at all. Decided `lib/media.nix`'s `zathura-pdf-poppler` entry to carry `nixpkgs = null` rather than an invented mapping. |
-| `timg-arch-aur-only.md` | `timg` is AUR-only on Arch but an ordinary official attribute on nixpkgs — the drift runs the opposite direction from every other AUR-flagged entry in this catalogue family so far. Decided `lib/media.nix`'s `timg` entry to carry `aur = true` with a plain, unqualified `nixpkgs = "timg"`, and to say so inline. |
+No entries today. The catalogue this repo now carries (vlc alone) has needed no divergence
+write-up: it is an ordinary official-repo package on both platforms, arch name equal to nixpkgs
+attribute, no AUR, no plugin-bundling quirk. This directory stays because the next graphical
+addition — an image viewer, a comics reader — is not guaranteed to be that simple, the same way
+`lib/media.nix`'s own `aur` field stays in the shape for the same reason.

@@ -14,10 +14,12 @@ rev="${1:-1d4e0f865d68258aada31e68e6d79c8c463f3b34}"
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
 
 # Every arch name in lib/media.nix that is NOT marked aur = true.
-official_names=(ffmpeg mpv vlc cmus yazi yt-dlp zathura zathura-pdf-poppler chafa)
+official_names=(vlc)
 # Every arch name that IS marked aur = true — pacman -Si cannot see these at all; they are
-# checked against the AUR's own RPC instead.
-aur_names=(timg)
+# checked against the AUR's own RPC instead. Empty today — vlc is an official-repo package on
+# both platforms — but the loop below stays in place for whatever graphical entry arrives next
+# (an image viewer, a comics reader) that turns out not to be.
+aur_names=()
 
 echo "== Arch official repos (pacman -Si) =="
 official_status=0

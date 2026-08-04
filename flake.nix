@@ -1,5 +1,5 @@
 {
-  description = "nixmedia — media consumption declared: players, terminal browsing/preview, document viewers, and yt-dlp, plus the ffmpeg/mpv pair every machine wants. Not production (nixrecord) and not streaming transport (nixremote, which owns sunshine/moonlight)";
+  description = "nixmedia — GRAPHICAL media consumption declared: vlc today, an image viewer and a comics reader to come. Terminal-shaped tools (ffmpeg, mpv, cmus, yazi, chafa, timg, yt-dlp) moved to nixsh; not production (nixrecord) and not streaming transport (nixremote, which owns sunshine/moonlight)";
 
   # nixpkgs is used ONLY by this flake's own `checks` below (proving the module resolves
   # selections correctly, and separately — see experiments/validate-nixpkgs-names.nix — that
