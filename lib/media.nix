@@ -2,12 +2,14 @@
 # The media catalogue: consumption and format-shifting, never capture or authoring. A
 # terminal-shaped tool, no matter how media-adjacent it looks, is nixsh's problem now.
 #
-# THREE GROUPS below, tested three different ways. `players` is tools a person launches -- the
+# FOUR GROUPS below, tested four different ways. `players` is tools a person launches -- the
 # display-mode-and-default test right below decides those. `plugins` is GStreamer libraries that
 # extend what an already-installed GStreamer application can decode -- a different test, explained
 # in that group's own section further down, because the players test does not even apply to a
 # library with no entry point of its own. `transcode` is opened for the tool that re-encodes an
 # artifact you already have -- neither a player nor a plugin -- see "THE THIRD GROUP" below.
+# `library` is opened for the tool that maintains a collection you already own without touching its
+# content -- neither a player, a plugin, nor a transcoder -- see "THE FOURTH GROUP" below.
 #
 # THE PLACEMENT RULE FOR `players`, stated as a test so the next addition is decided rather than
 # argued: does the tool have a display mode at all, and is that mode its DEFAULT?
@@ -105,8 +107,27 @@
 # identical reason -- vlc can stream/transcode its own output, but the source is still something
 # already opened.
 #
-# A FOURTH GROUP, `accel`, briefly lived here: a VA-API driver (`intel-media-driver`), keyed to
-# GPU vendor -- vendor -> { packages; note; } -- rather than to a flat name list, because "which
+# THE FOURTH GROUP: `library`. Not a player (question 2's graphical-default test passes -- EasyTAG
+# opens a window just like vlc does -- but nothing is watched or heard through it) and not a
+# transcoder (the artifact's encoded bytes are untouched; only the metadata wrapped around them
+# changes). Opened for the second pre-registered trigger the header above named in advance when it
+# opened `transcode`: a genuinely fourth KIND of entry, not a second `players`- or
+# `transcode`-shaped one. The test that decides it, stated the same one-line shape as transcode's:
+#
+#   You EDIT WHAT DESCRIBES an artifact you already have. You touch neither its content nor its
+#   container/codec.
+#
+# EasyTAG's input and output are the same audio stream, byte for byte -- only the ID3/Vorbis/etc.
+# tags wrapped around it change. That is decisively different from `transcode`'s re-encode (the
+# STREAM changes, the tags usually do not) and from `players`' display-and-consume (nothing is
+# played through EasyTAG at all, even though it has a graphical window like any `players` entry).
+# The test generalises cleanly to the obvious next additions this repo does not carry yet -- beets,
+# picard -- which is why the group is named for the KIND of maintenance it does (`library`, as in
+# "your collection"), not for the one tool that opened it.
+#
+# A different group, `accel`, briefly lived here too, keyed to hardware rather than to kind: a
+# VA-API driver, keyed to GPU vendor -- vendor -> { packages; note; } -- rather than to a flat name
+# list, because "which
 # package" genuinely depended on "which silicon" the way nothing else in this table does. It never
 # belonged: the same package was catalogued a second time by nixgpu's own lib/catalogue.nix
 # (`toolchain.capabilities.videoAccel`, the identical vendor -> [ entries ] shape, opened for the
@@ -121,7 +142,7 @@
 # AUR rather than an official repo -- see nixfont's own lib/fonts.nix header for why that
 # distinction is load-bearing: `pacman -S` fails the WHOLE transaction on an AUR name with "target
 # not found", taking every other package in the same converge down with it. No entry needs it
-# today -- every entry across all three groups below is an official-repo package on Arch -- the
+# today -- every entry across all four groups below is an official-repo package on Arch -- the
 # field stays in the shape because the next addition is not guaranteed to be.
 #
 # Every (arch, nixpkgs) pair below was verified against a REAL system, not guessed: `pacman -Si
@@ -136,6 +157,12 @@
 # against this flake's OWN pinned nixpkgs revision (a5cbcfe954791221bfffe2307f7d1a1bf61a871e --
 # see flake.lock): `pacman -Si` for all three Arch names, and a force-evaluating `nix eval` for the
 # two real nixpkgs attributes plus `vlc-plugins-all`'s verified-ABSENT one.
+#
+# `shortwave` and `easytag` were verified live the same way and the same day, against the same
+# pinned revision: `pacman -Si` for both Arch names (both official-repo, `extra`), and a
+# force-evaluating `nix eval` for both nixpkgs attributes -- both present this time, no `nixpkgs =
+# null` needed for either. `meta.homepage` was cross-checked against pacman's own `URL` field for
+# both, so neither entry can be quietly mapping two different upstream projects onto one name.
 { ... }:
 {
   # ── Players ─────────────────────────────────────────────────────────────────────────────────
@@ -144,6 +171,12 @@
       arch = "vlc";
       nixpkgs = "vlc";
       note = "the graphical media player -- the everything-plays-it interface for the odd container or codec the terminal player (mpv, filed in nixsh) genuinely refuses to open.";
+    };
+
+    shortwave = {
+      arch = "shortwave";
+      nixpkgs = "shortwave";
+      note = "GTK4/libadwaita internet radio -- a stream you tune into, not a file you already have, but still consumption by the artifact-existed-first test (the station existed before the app opened it). Hard-depends on gst-plugins-base/-good/-bad on Arch (confirmed via `pacman -Si`) -- the header's own \"WHY ALL SIX\" paragraph already names this app as the reason a bare desktop container was missing `good`/`bad`: install shortwave and the three plugins arrive as a side effect, skip it and they do not.";
     };
   };
 
@@ -213,6 +246,17 @@
       arch = "handbrake";
       nixpkgs = "handbrake";
       note = "the format-shifter -- re-encodes a programme already on disk into a different container/codec. Its Arch hard-dep on gst-plugins-base, plus optdeps on gst-plugins-good/gst-libav for video previews, already lean on the `plugins` group above. The package itself is class-wide (it bundles SVT-AV1, a software AV1 encode path with no hardware dependency, alongside encoder strings for hardware paths the class's own silicon may or may not back) -- an ENCODE PRESET naming one of those hardware paths is not, and this repo does not carry one. It declares the transcoder; it never declares how to encode.";
+    };
+  };
+
+  # ── Library: collection maintenance, neither playback nor format-shifting ─────────────────
+  # See the header's "THE FOURTH GROUP" section for the placement test and why EasyTAG is filed
+  # here rather than as a player or a transcoder.
+  library = {
+    easytag = {
+      arch = "easytag";
+      nixpkgs = "easytag";
+      note = "GTK3 audio tag editor -- reads and rewrites ID3/Vorbis/etc. metadata (artist, album, track number) on files already on disk and never touches the encoded stream itself. Has a graphical default like any `players` entry, and the artifact existed before it ran, so it is consumption by the header's own rule -- but it neither plays what it opens (not `players`) nor changes the bits of the audio itself (not `transcode`), the second pre-registered trigger for a group of its own. Generalises to the obvious future additions this repo does not carry yet: beets, picard.";
     };
   };
 }

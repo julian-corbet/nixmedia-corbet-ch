@@ -27,6 +27,9 @@ let
   newPlugins = evalWith { plugins = [ "vlc-plugins-all" "libdvdcss" ]; };
   transcodeOnly = evalWith { transcode = [ "handbrake" ]; };
 
+  allPlayers = evalWith { players = [ "vlc" "shortwave" ]; };
+  libraryOnly = evalWith { library = [ "easytag" ]; };
+
   has = list: item: lib.elem item list;
 
   results = {
@@ -102,6 +105,23 @@ let
 
     "a name never in the transcode catalogue is rejected at eval time, not silently ignored" =
       (builtins.tryEval (builtins.deepSeq (evalWith { transcode = [ "ffmpeg" ]; }).transcode true)).success == false;
+
+    # ── players: the second entry (shortwave) ─────────────────────────────────────────────
+    "vlc and shortwave both resolve as players, no AUR" =
+      allPlayers.archPackages == [ "vlc" "shortwave" ] && allPlayers.aurPackages == [ ];
+
+    "shortwave has a nixpkgs equivalent -- nothing surfaces as unavailable on NixOS" =
+      allPlayers.unavailableOnNixos == [ ];
+
+    # ── library: the new group ────────────────────────────────────────────────────────────
+    "easytag resolves as its own group, one entry, no AUR" =
+      libraryOnly.archPackages == [ "easytag" ] && libraryOnly.aurPackages == [ ];
+
+    "easytag has a nixpkgs equivalent" =
+      libraryOnly.nixosPackages == [ "easytag" ] && libraryOnly.unavailableOnNixos == [ ];
+
+    "a name never in the library catalogue is rejected at eval time, not silently ignored" =
+      (builtins.tryEval (builtins.deepSeq (evalWith { library = [ "picard" ]; }).library true)).success == false;
   };
 
   failed = lib.attrNames (lib.filterAttrs (_: passed: !passed) results);

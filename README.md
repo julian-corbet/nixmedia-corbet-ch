@@ -208,9 +208,10 @@ revision.
 
 | Group | Test | Entries |
 |---|---|---|
-| `players` | a tool you open to consume something that already exists | `vlc` |
+| `players` | a tool you open to consume something that already exists | `vlc`, `shortwave` |
 | `plugins` | a library with no entry point that extends what an installed media application can read | `gst-plugins-base`, `gst-plugins-good`, `gst-plugins-bad`, `gst-plugins-ugly`, `gst-libav`, `gst-plugin-pipewire`, `vlc-plugins-all`, `libdvdcss` |
 | `transcode` | a tool that re-encodes an artifact you already have — neither a player nor a plugin | `handbrake` |
+| `library` | a tool that maintains a collection you already own — edits metadata, never content | `easytag` |
 
 The `plugins` group is named that rather than `codecs` on purpose: `gst-plugin-pipewire` is an
 audio *sink*, not a codec, and `vlc-plugins-all`/`libdvdcss` are a whole-application plugin bundle
@@ -247,18 +248,25 @@ transcoding case, decided once" above for why it is filed as consumption rather 
 Its Arch hard-dep on `gst-plugins-base` plus optdeps on `gst-plugins-good`/`gst-libav` (video
 previews) already leans on the `plugins` group.
 
-### Proposed, not yet declared
+`shortwave` joined `players` alongside `vlc`: GTK4/libadwaita internet radio, a stream you tune
+into rather than a file you already have, but still consumption by the artifact-existed-first test
+— the station existed before the app opened it. Its Arch hard-dep on
+`gst-plugins-base`/`-good`/`-bad` is the live example the "Why the whole GStreamer set" paragraph
+above already named: install shortwave and three plugins arrive as a side effect, skip it and they
+do not.
 
-Package-to-repo assignment is the operator's call, so these are recommendations the catalogue does
-not yet carry. Every Arch fact below is from `pacman -Si`/`-Qii` on a live host; every nixpkgs
-attribute was force-evaluated against this flake's pinned revision.
+`library` opened for `easytag`, the second pre-registered trigger the transcoding section named in
+advance: a tool that is neither a player (nothing is played through it) nor a transcoder (the
+audio stream's bytes never change, only the ID3/Vorbis/etc. metadata wrapped around them does).
+The group's test generalises cleanly to the obvious future additions this repo does not carry yet
+— beets, picard.
 
-| Proposed | Group | Why, and the failure it prevents |
-|---|---|---|
-| `shortwave` | `players` | Internet radio — a stream you tune into. Graphical by default, consumption-only. |
-| `easytag` | `library` (new) | Audio tag editing: maintenance of a collection you already own, changing metadata and never content. Not a player, not a transcoder — the second pre-registered trigger. The group's test generalises cleanly to the obvious future additions (beets, picard). |
+### Deliberately not declared
 
-Deliberately **not** proposed, with reasons, so the same names do not come back:
+Package-to-repo assignment is the operator's call. The names below were considered and rejected,
+with reasons, so the same names do not come back as a "why isn't this here" question later. Every
+Arch fact below is from `pacman -Si`/`-Qii` on a live host; every nixpkgs attribute was
+force-evaluated against this flake's pinned revision.
 
 - **`intel-media-driver`, `vpl-gpu-rt`, `intel-media-sdk`** — VA-API/QuickSync drivers and
   runtimes, all keyed to GPU silicon rather than to the host class. [nixgpu][nixgpu]'s domain, not
@@ -331,7 +339,7 @@ dropped outright.
                                                       # or .systemManagerModules.default
 
   nixmedia = {
-    players = [ "vlc" ];
+    players = [ "vlc" "shortwave" ];
     plugins = [
       "gst-plugins-base"
       "gst-plugins-good"
@@ -343,6 +351,7 @@ dropped outright.
       "libdvdcss"
     ];
     transcode = [ "handbrake" ];
+    library = [ "easytag" ];
   };
 }
 ```
@@ -366,7 +375,7 @@ On Arch, wire the resolved lists into the reconciler — the module installs not
 |---|---|
 | `flake.nix` | `nixosModules.default`, `homeManagerModules.default`, `systemManagerModules.default`, `lib.catalogue`, `checks`. The `nixpkgs` input is used **only** by this flake's own checks — the exported modules take `pkgs` from whatever evaluation composes them, so composing this flake can never add a second nixpkgs to a consumer's closure. |
 | `lib/media.nix` | The catalogue: one entry per selectable name, platform package names, and every placement rule in full with worked examples. |
-| `modules/nixmedia.nix` | Policy: selection groups (`players`/`plugins`/`transcode`) and the resolved `archPackages`/`aurPackages`/`nixosPackages`/`unavailableOnNixos` lists. |
+| `modules/nixmedia.nix` | Policy: selection groups (`players`/`plugins`/`transcode`/`library`) and the resolved `archPackages`/`aurPackages`/`nixosPackages`/`unavailableOnNixos` lists. |
 | `modules/nixos.nix`, `modules/arch.nix`, `home/nixmedia.nix` | The three backends. |
 | `checks/` | `nix flake check`-wired proof that selection and resolution are wired correctly — including that a name which left the catalogue is *rejected*, not silently accepted. Module evaluation, not a package build. |
 | `experiments/` | `validate-nixpkgs-names.nix` (force-eval every catalogued nixpkgs name against a real package set) and `verify-package-names.sh` (the full Arch + AUR + nixpkgs verification, reproducible). |
