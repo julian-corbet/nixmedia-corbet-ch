@@ -68,9 +68,12 @@ package name a distro happens to cut it into.
 ### 3. If it defaults to a window: did the artifact already exist before the tool ran?
 
 - **Yes** — you play it, browse it, tag it, or re-encode it → **consumption. Here.**
-- **No** — the tool brings something into the world that was not there → **production**:
-  `nixrecord` (screen/window/region capture), `nixcreative` (authoring — editing, compositing,
-  mixing, painting).
+- **No** — the tool brings something into the world that was not there → **production**, and
+  production splits by what is captured: `nixrecord` owns real-world capture only (camera,
+  microphone, capture card); a digital interface is captured by whichever repo already owns that
+  interface — the desktop's screen/window/region capture is [nixremote][nixremote]'s /
+  [nixdesktop][nixdesktop]'s, never nixrecord's — and authoring (editing, compositing, mixing,
+  painting) is `nixcreative`'s.
 
 Stated as one line: **consumption and format-shifting live here; capture and authoring do not.**
 
@@ -115,7 +118,7 @@ Two corollaries make the rule cheap to apply later:
 | `ffmpegthumbnailer` | library | loaded by tumbler/nemo/ranger — a file browser | [nixdesktop][nixdesktop] |
 | `libopenraw` | library | loaded by gdk-pixbuf/tumbler — the preview pipeline | [nixdesktop][nixdesktop] |
 | `mpv`, `cmus`, `ffmpeg`, `yt-dlp` | tool | no graphical default (mpv: stated exception) | [nixsh][nixsh] |
-| OBS | tool | the recording is new | `nixrecord` |
+| OBS | tool | the recording is new — desktop capture, a digital interface | [nixremote][nixremote] / [nixdesktop][nixdesktop] |
 | a video editor, a DAW, a raster editor | tool | the cut/mix/image is new | `nixcreative` |
 | sunshine, moonlight | tool | transport, not content — see below | [nixremote][nixremote] |
 | `zathura` | — | a GTK document viewer, never a TUI and never media | **dropped**, replaced by nothing |
@@ -385,8 +388,11 @@ dropped outright.
 ## What this repo does not own
 
 - **Terminal-shaped tools**, however media-adjacent — [nixsh][nixsh]'s.
-- **Recording and authoring** — `nixrecord` (screen capture, as rendered OBS profile and scene
-  files, not a package list) and `nixcreative` (editors and composition tools).
+- **Recording and authoring** — `nixrecord` (real-world capture — camera, microphone, capture
+  card — as rendered OBS profile and scene files, not a package list; screen/window/region capture
+  is a digital interface and belongs to whichever repo owns it instead, e.g.
+  [nixremote][nixremote]/[nixdesktop][nixdesktop], never nixrecord) and `nixcreative` (editors and
+  composition tools).
 - **Streaming and remote-desktop transport** — [nixremote][nixremote] owns sunshine and moonlight.
   The boundary exists specifically so a headless box never acquires a reason to pull in a streaming
   client.
@@ -467,9 +473,10 @@ Part of the same independently-usable module family. The ones this repo draws a 
 [nixarch][nixarch] (the Arch reconciler every `systemManagerModules` backend in this family
 publishes into).
 
-`nixrecord` (screen capture) and `nixcreative` (authoring) are the production side of the
-artifact-existed-first test. Both are named throughout this README as the destination for anything
-this repo turns away, and neither is published yet — the boundary is decided even where the repo
+`nixrecord` (real-world capture — camera, microphone, capture card) and `nixcreative` (authoring)
+are the production side of the artifact-existed-first test. Both are named throughout this README
+as the destination for anything this repo turns away, and neither is published yet — the boundary
+is decided even where the repo
 behind it is not yet public.
 
 [nixsh]: https://github.com/julian-corbet/nixsh-corbet-ch
