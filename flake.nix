@@ -1,5 +1,5 @@
 {
-  description = "nixmedia — media consumption and format-shifting declared, class-wide: players (vlc), the GStreamer/vlc plugin surface, transcode (handbrake), and the one hardware-keyed VA-API driver group (accel). Terminal-shaped tools (ffmpeg, mpv, cmus, yazi, chafa, timg, yt-dlp) moved to nixsh; not production (nixrecord) and not streaming transport (nixremote, which owns sunshine/moonlight)";
+  description = "nixmedia — media consumption and format-shifting declared, class-wide: players (vlc), the GStreamer/vlc plugin surface, and transcode (handbrake). Terminal-shaped tools (ffmpeg, mpv, cmus, yazi, chafa, timg, yt-dlp) moved to nixsh; not production (nixrecord), not streaming transport (nixremote, which owns sunshine/moonlight), and not hardware-keyed drivers (nixgpu, which owns VA-API)";
 
   # nixpkgs is used ONLY by this flake's own `checks` below (proving the module resolves
   # selections correctly, and separately — see experiments/validate-nixpkgs-names.nix — that

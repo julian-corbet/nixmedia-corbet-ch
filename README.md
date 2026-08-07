@@ -37,7 +37,7 @@ instead: **which application loads it?**
 | a media application — a player, a transcoder | **`plugins`, here** |
 | the desktop's file-manager preview pipeline (tumbler, gdk-pixbuf) | the file-manager role in [nixdesktop][nixdesktop] |
 | code you write | [nixdev][nixdev] |
-| *whatever GPU is present*, with no media application presupposed | **`accel`, here — but only conditionally.** See [Hardware-keyed declarations are conditional](#hardware-keyed-declarations-are-conditional-never-class-wide) |
+| *whatever GPU is present*, with no media application presupposed | [nixgpu][nixgpu]'s — hardware-keyed, never a class-wide declaration this repo can make honestly. See [What this repo does not own](#what-this-repo-does-not-own) |
 
 That test is not academic. `ffmpegthumbnailer` and `libopenraw` look like media libraries and are
 not: `pacman -Sii` reports their consumers as `tumbler`, `nemo`, `ranger` and `gdk-pixbuf2` — every
@@ -114,7 +114,7 @@ Two corollaries make the rule cheap to apply later:
 | `gst-libav`, `gst-plugins-*` | library | loaded by a media application | **here** (`plugins`) |
 | `vlc-plugins-all` | library | loaded by vlc | **here** (`plugins`) |
 | `libdvdcss` | library | loaded by vlc's DVD plugin *and* by HandBrake | **here** (`plugins`) |
-| `intel-media-driver` | driver | keyed to one vendor's silicon, no application presupposed | **here** (`accel`) — **only under a host-declared vendor** |
+| `intel-media-driver` | driver | keyed to one vendor's silicon, no application presupposed | [nixgpu][nixgpu] (`toolchain.capabilities.videoAccel`) — **never here** |
 | `ffmpegthumbnailer` | library | loaded by tumbler/nemo/ranger — a file browser | [nixdesktop][nixdesktop] |
 | `libopenraw` | library | loaded by gdk-pixbuf/tumbler — the preview pipeline | [nixdesktop][nixdesktop] |
 | `mpv`, `cmus`, `ffmpeg`, `yt-dlp` | tool | no graphical default (mpv: stated exception) | [nixsh][nixsh] |
@@ -166,109 +166,26 @@ This is also why the repo has no notion of a "default selection". Every group is
 names what it wants, and an empty selection is a legitimate answer for a machine with no seated
 session at all.
 
-## Hardware-keyed declarations are conditional, never class-wide
+## Hardware-keyed packages are never a class-wide declaration
 
 A VA-API driver is keyed to **silicon**. The rest of this repo is keyed to a **host class**. Those
 are different keys, and the naive resolutions of that conflict are both wrong: declaring a driver
-unconditionally puts one vendor's driver on every host of a mixed-vendor class, and refusing to
-declare it at all leaves the class-wide media stack unable to say why a video plays without burning
-a CPU core.
+unconditionally puts one vendor's driver on every host of a mixed-vendor class, and a group whose
+every non-empty cell is one vendor's package is not "the media catalogue with an extra key" — it is
+a second hardware catalogue wearing this repo's name.
 
-The resolution is a group with a key of its own. **`accel` may declare hardware-specific packages,
-conditional on a vendor the host itself has declared.** Four properties make it decidable, and each
-one prevents a specific failure.
-
-### 1. The condition keys off a host declaration, never detection
-
-```nix
-nixmedia.accel = "intel";   # null (the default) | "amd" | "intel" | "nvidia"
-```
-
-One option, `nullOr (enum [ "amd" "intel" "nvidia" ])`, default `null`. The host states its silicon.
-The module never looks at `/sys/class/drm/*/device/vendor`, and never will.
-
-Two reasons, either sufficient. Module evaluation is **pure and portable**: a config may be
-evaluated on a build host and deployed to a different machine, so a `/sys` read at eval time
-resolves against the *builder's* card and silently produces a driver for hardware that is somewhere
-else entirely. And a detected value is a value nobody wrote down — the declaration stops being a
-statement of intent you can diff, and becomes a function of whichever machine happened to run the
-evaluation.
-
-### 2. Single-valued, so the ambiguous state is unrepresentable
-
-`accel` is one vendor, not a list. Installing two VA-API drivers at once leaves `libva` picking
-between them, and the fix is an explicit `LIBVA_DRIVER_NAME` — host policy, not a catalogue entry.
-Making the option single-valued means the broken state cannot be spelled, rather than being
-discouraged in a comment nobody reads.
-
-### 3. An empty cell is a correct answer, not an unfilled one
-
-This is the property a flat *name → package* catalogue cannot express, and it is the whole reason
-`accel` needs a shape of its own rather than another list of names.
-
-| Vendor | Packages | Why |
-|---|---|---|
-| `amd` | **none, on either plane** | Mesa's `radeonsi` VA-API driver ships inside the `mesa` build itself. Arch's separate `libva-mesa-driver` package **no longer exists** — verified, `pacman -Si libva-mesa-driver` resolves nothing; it was folded into `mesa`. On NixOS `hardware.graphics.enable` already installs mesa. There is genuinely nothing to add. |
-| `intel` | `intel-media-driver` | The iHD driver, Broadwell and newer. The one entry that closes a real gap: without it, `vainfo` on Intel silicon reports no profiles at all. |
-| `nvidia` | **none** | NVENC/NVDEC are not exposed through VA-API; the proprietary runtime talks to them directly. The third-party `nvidia-vaapi-driver` shim is not carried, for lack of evidence anything in the class needs it. No host in the class has this silicon — the cell is empty for a stated reason, not for lack of research. |
-
-A host declaring `accel = "amd"` therefore receives **zero packages and a working VA-API stack**.
-That is the correct outcome. A catalogue that could only express "this name maps to a package" would
-have had to invent one.
-
-### 4. `null` contributes nothing by construction
-
-```nix
-accelEntries = if cfg.accel == null then [ ] else catalogue.accel.${cfg.accel}.packages;
-```
-
-Not a filter that can be forgotten, not a warning, not an error — a host that declares no vendor
-resolves to the empty list before any lookup happens. It gets software decode, which the class-wide
-rule above already establishes is an acceptable outcome. This is the same construction
-[nixgpu][nixgpu]'s own `vendor = null` uses, reused rather than reinvented.
-
-### The NixOS plane is an option, not a package list
-
-`accel` is the first group here whose two planes are not the same kind of thing, and getting this
-wrong produces a build that succeeds and a driver that is never loaded.
-
-nixpkgs builds `libva` with `-Ddriverdir=${mesa.driverLink}/lib/dri:/usr/lib/dri:...`, and
-`mesa.driverLink` is `/run/opengl-driver` — which the NixOS graphics module populates from
-`hardware.graphics.package` plus **`hardware.graphics.extraPackages`**, and from nothing else.
-(nixpkgs is explicit about this: the old `services.xserver.vaapiDrivers` option is a
-`mkRenamedOptionModule` pointing straight at `extraPackages`.)
-
-A VA-API driver placed in `environment.systemPackages` therefore lands in the store, appears in the
-system closure, and is **never found by `libva`**. It is inert.
-
-So the resolved lists split:
-
-| Plane | Where `accel` entries go | Why |
-|---|---|---|
-| Arch (`archPackages`) | the same pacman list as everything else | `/usr/lib/dri` is already on libva's default `driverdir`. |
-| NixOS | a separate `nixmedia.graphicsPackages`, wired to `hardware.graphics.extraPackages` — **never** `environment.systemPackages` | see above. `accel` entries are deliberately absent from `nixosPackages`. |
-| home-manager | nothing; selected `accel` is refused with a warning | `hardware.graphics` is a system option. A per-user backend cannot install a GPU driver, and pretending otherwise is the same inert-install failure one layer up. |
-
-### What stays out of `accel` regardless
-
-The condition licenses *hardware-keyed*, not *vendor-everything*. `accel` carries the VA-API driver
-a media application queries. It does not carry compute SDKs, Vulkan ICDs, 32-bit gaming stacks or
-vendor telemetry — those are [nixgpu][nixgpu]'s `toolchain.capabilities.*`, keyed the same way and
-already built for it.
-
-**Consequence, and it is a move rather than a copy.** `intel-media-driver` is declared **today** by
-nixgpu's `toolchain.capabilities.videoAccel`. One package, one catalogue — the family rule holds
-across repos, not just within one. Ratifying `accel` therefore means nixgpu's `videoAccel` intel
-cell empties out and the host that enables it stops doing so, in the same change. Declaring it in
-both is not a fallback position; it is the failure the rule exists to prevent.
+This repo briefly carried exactly that group (`accel`, a VA-API driver selected by a host-declared
+GPU vendor) and removed it: `intel-media-driver`, the one package it ever resolved to, was already
+declared by [nixgpu][nixgpu]'s own `toolchain.capabilities.videoAccel`, keyed the identical way, for
+the identical reason. One package belongs to one catalogue, and the catalogue a hardware-keyed
+package belongs to is the hardware repo's, not the class-wide consumption repo's — see
+[What this repo does not own](#what-this-repo-does-not-own).
 
 ## The catalogue
 
 `lib/media.nix` is the single data table; `modules/nixmedia.nix` turns a selection into resolved
 package lists. Each entry maps a name to a pacman package (`arch`), a nixpkgs attribute path
-(`nixpkgs`), and an `aur` flag (default `false`). `accel` nests that same entry shape one level
-deeper, under a vendor — the shape [nixgpu][nixgpu]'s catalogue already uses for the identical
-reason.
+(`nixpkgs`), and an `aur` flag (default `false`).
 
 `aur` is load-bearing even though nothing needs it today: `pacman -S` fails the **whole
 transaction** on an AUR name with "target not found", taking every unrelated package in the same
@@ -294,7 +211,6 @@ revision.
 | `players` | a tool you open to consume something that already exists | `vlc` |
 | `plugins` | a library with no entry point that extends what an installed media application can read | `gst-plugins-base`, `gst-plugins-good`, `gst-plugins-bad`, `gst-plugins-ugly`, `gst-libav`, `gst-plugin-pipewire`, `vlc-plugins-all`, `libdvdcss` |
 | `transcode` | a tool that re-encodes an artifact you already have — neither a player nor a plugin | `handbrake` |
-| `accel` | the one hardware-keyed group — a VA-API driver, selected by a host-declared vendor, never autodetected | `intel`: `intel-media-driver` · `amd`, `nvidia`: none, by design — see [Hardware-keyed declarations are conditional](#hardware-keyed-declarations-are-conditional-never-class-wide) |
 
 The `plugins` group is named that rather than `codecs` on purpose: `gst-plugin-pipewire` is an
 audio *sink*, not a codec, and `vlc-plugins-all`/`libdvdcss` are a whole-application plugin bundle
@@ -331,12 +247,6 @@ transcoding case, decided once" above for why it is filed as consumption rather 
 Its Arch hard-dep on `gst-plugins-base` plus optdeps on `gst-plugins-good`/`gst-libav` (video
 previews) already leans on the `plugins` group.
 
-`accel` carries `intel-media-driver` in its one non-empty cell — a **move out of
-[nixgpu][nixgpu]'s** `toolchain.capabilities.videoAccel`, not a duplicate; see the consequence note
-in the hardware-keyed section above. `amd` and `nvidia` resolve to zero packages each, correctly:
-Mesa's own `radeonsi` VA-API driver ships inside `mesa`, and NVENC/NVDEC are not exposed through
-VA-API at all.
-
 ### Proposed, not yet declared
 
 Package-to-repo assignment is the operator's call, so these are recommendations the catalogue does
@@ -347,13 +257,12 @@ attribute was force-evaluated against this flake's pinned revision.
 |---|---|---|
 | `shortwave` | `players` | Internet radio — a stream you tune into. Graphical by default, consumption-only. |
 | `easytag` | `library` (new) | Audio tag editing: maintenance of a collection you already own, changing metadata and never content. Not a player, not a transcoder — the second pre-registered trigger. The group's test generalises cleanly to the obvious future additions (beets, picard). |
-| `vpl-gpu-rt` | `accel`, `intel` cell — **lowest confidence of anything here** | The oneVPL runtime HandBrake's QuickSync path (`qsv_av1`) actually loads on Tiger Lake and newer. Proposed because the obvious alternative is a **trap**: HandBrake's own Arch optdep line still names `intel-media-sdk`, which is described upstream as the *legacy* API for "Broadwell to Rocket Lake" — it does not cover Xe2-class silicon at all, and its nixpkgs attribute **throws** (removed, kept only as a stub). Following the optdep would install a package that is wrong on this silicon and unbuildable on the other plane. Still the most arguable entry in this table: it is an *encode*-side runtime, and the operator may reasonably decide the class-wide repo should stop at decode. If so, this row never lands and nothing else changes. |
 
 Deliberately **not** proposed, with reasons, so the same names do not come back:
 
-- **`intel-media-sdk`** — see `vpl-gpu-rt` above. Legacy, wrong generation, and a throwing nixpkgs
-  stub. This is the one name in the domain that looks correct because a package's own metadata
-  recommends it.
+- **`intel-media-driver`, `vpl-gpu-rt`, `intel-media-sdk`** — VA-API/QuickSync drivers and
+  runtimes, all keyed to GPU silicon rather than to the host class. [nixgpu][nixgpu]'s domain, not
+  this repo's — see [Hardware-keyed packages are never a class-wide declaration](#hardware-keyed-packages-are-never-a-class-wide-declaration).
 - **`ffmpegthumbnailer`, `libopenraw`** — the file-manager preview pipeline's, already declared by
   that role. Their consumers are file browsers, not media applications.
 - **`libaacs`** — the same *shape* as `libdvdcss` for Blu-ray, and rejected precisely because the
@@ -396,9 +305,10 @@ dropped outright.
 - **Streaming and remote-desktop transport** — [nixremote][nixremote] owns sunshine and moonlight.
   The boundary exists specifically so a headless box never acquires a reason to pull in a streaming
   client.
-- **Compute SDKs, Vulkan ICDs, vendor telemetry, 32-bit gaming stacks** — [nixgpu][nixgpu]'s. The
-  `accel` group above takes the VA-API driver *only*, under a declared vendor, and takes nothing
-  else with it.
+- **VA-API drivers, compute SDKs, Vulkan ICDs, vendor telemetry, 32-bit gaming stacks** —
+  [nixgpu][nixgpu]'s. Any package whose correct variant depends on which GPU vendor a host has is
+  hardware-keyed, and this repo does not carry hardware-keyed declarations at all — see
+  [Hardware-keyed packages are never a class-wide declaration](#hardware-keyed-packages-are-never-a-class-wide-declaration).
 - **The audio daemon itself** — [nixaudio][nixaudio]'s. This repo carries the GStreamer-side sink
   that reaches it, and nothing else, so the whole `gst-*` namespace has exactly one owner and two
   repos can never shadow each other on it.
@@ -409,8 +319,8 @@ dropped outright.
 
 | Backend | Behaviour |
 |---|---|
-| `nixosModules.default` | Installs via `environment.systemPackages`. Force-evaluates every nixpkgs attribute first (`tryEval`, not `hasAttrByPath`) so one stale mapping in a data table degrades to a skip plus a warning instead of failing the whole system evaluation. `accel` entries bypass this list entirely and go to `hardware.graphics.extraPackages` — see [the NixOS plane is an option](#the-nixos-plane-is-an-option-not-a-package-list). |
-| `homeManagerModules.default` | Same resolution, installing to `home.packages` — for a per-user selection on a host whose system layer is not yours to change. A selected `accel` vendor is refused with a warning rather than installed inertly. |
+| `nixosModules.default` | Installs via `environment.systemPackages`. Force-evaluates every nixpkgs attribute first (`tryEval`, not `hasAttrByPath`) so one stale mapping in a data table degrades to a skip plus a warning instead of failing the whole system evaluation. |
+| `homeManagerModules.default` | Same resolution, installing to `home.packages` — for a per-user selection on a host whose system layer is not yours to change. |
 | `systemManagerModules.default` | Installs nothing. Publishes `nixmedia.archPackages` and `nixmedia.aurPackages` for the host's own [nixarch][nixarch] reconciler. **We do not shadow**: on Arch a selected package comes from pacman, never a second copy from nixpkgs. |
 
 ## Usage
@@ -433,7 +343,6 @@ dropped outright.
       "libdvdcss"
     ];
     transcode = [ "handbrake" ];
-    accel = "intel"; # null (the default) | "amd" | "intel" | "nvidia" -- state the host's own silicon
   };
 }
 ```
@@ -457,7 +366,7 @@ On Arch, wire the resolved lists into the reconciler — the module installs not
 |---|---|
 | `flake.nix` | `nixosModules.default`, `homeManagerModules.default`, `systemManagerModules.default`, `lib.catalogue`, `checks`. The `nixpkgs` input is used **only** by this flake's own checks — the exported modules take `pkgs` from whatever evaluation composes them, so composing this flake can never add a second nixpkgs to a consumer's closure. |
 | `lib/media.nix` | The catalogue: one entry per selectable name, platform package names, and every placement rule in full with worked examples. |
-| `modules/nixmedia.nix` | Policy: selection groups (`players`/`plugins`/`transcode`, plus the single-vendor `accel`) and the resolved `archPackages`/`aurPackages`/`nixosPackages`/`unavailableOnNixos`/`graphicsPackages` lists. |
+| `modules/nixmedia.nix` | Policy: selection groups (`players`/`plugins`/`transcode`) and the resolved `archPackages`/`aurPackages`/`nixosPackages`/`unavailableOnNixos` lists. |
 | `modules/nixos.nix`, `modules/arch.nix`, `home/nixmedia.nix` | The three backends. |
 | `checks/` | `nix flake check`-wired proof that selection and resolution are wired correctly — including that a name which left the catalogue is *rejected*, not silently accepted. Module evaluation, not a package build. |
 | `experiments/` | `validate-nixpkgs-names.nix` (force-eval every catalogued nixpkgs name against a real package set) and `verify-package-names.sh` (the full Arch + AUR + nixpkgs verification, reproducible). |
@@ -467,8 +376,9 @@ On Arch, wire the resolved lists into the reconciler — the module installs not
 
 Part of the same independently-usable module family. The ones this repo draws a boundary against:
 [nixsh][nixsh] (terminal tools — the other side of the display-default test),
-[nixgpu][nixgpu] (compute SDKs, ICDs and vendor telemetry — the other side of the `accel` boundary),
-[nixremote][nixremote] (streaming transport), [nixaudio][nixaudio] (the audio daemon),
+[nixgpu][nixgpu] (compute SDKs, ICDs, vendor telemetry, and every VA-API driver — the hardware-keyed
+side of the class/silicon boundary), [nixremote][nixremote] (streaming transport),
+[nixaudio][nixaudio] (the audio daemon),
 [nixdesktop][nixdesktop] (desktop policy, including the file-manager preview pipeline), and
 [nixarch][nixarch] (the Arch reconciler every `systemManagerModules` backend in this family
 publishes into).

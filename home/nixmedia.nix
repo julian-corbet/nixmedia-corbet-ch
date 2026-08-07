@@ -1,6 +1,5 @@
 # Home-manager backend — installs resolved media viewers to `home.packages` while surfacing stale
-# mappings as warnings rather than hard failures. A selected `accel` vendor is refused, with a
-# warning, rather than installed inertly — see the `accel` warning below.
+# mappings as warnings rather than hard failures.
 { config, lib, pkgs, ... }:
 let
   cfg = config.nixmedia;
@@ -32,11 +31,6 @@ in
     warnings =
       lib.optional (cfg.unavailableOnNixos != [ ])
         "nixmedia: no nixpkgs equivalent for: ${lib.concatStringsSep ", " cfg.unavailableOnNixos}"
-      ++ staleMappings
-      ++ lib.optional (cfg.accel != null) ''
-        nixmedia: accel = "${cfg.accel}" selects a VA-API driver, but hardware.graphics is a
-        SYSTEM option -- a per-user home-manager profile cannot install a GPU driver. This
-        selection installs nothing here; declare accel on the NixOS module instead.
-      '';
+      ++ staleMappings;
   };
 }

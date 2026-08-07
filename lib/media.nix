@@ -2,15 +2,12 @@
 # The media catalogue: consumption and format-shifting, never capture or authoring. A
 # terminal-shaped tool, no matter how media-adjacent it looks, is nixsh's problem now.
 #
-# FOUR GROUPS below, tested four different ways. `players` is tools a person launches -- the
+# THREE GROUPS below, tested three different ways. `players` is tools a person launches -- the
 # display-mode-and-default test right below decides those. `plugins` is GStreamer libraries that
 # extend what an already-installed GStreamer application can decode -- a different test, explained
 # in that group's own section further down, because the players test does not even apply to a
 # library with no entry point of its own. `transcode` is opened for the tool that re-encodes an
 # artifact you already have -- neither a player nor a plugin -- see "THE THIRD GROUP" below.
-# `accel` is the one HARDWARE-KEYED group: a VA-API driver, selected by a single host-declared
-# vendor rather than a name list -- see "THE FOURTH GROUP" below and the README's "Hardware-keyed
-# declarations are conditional, never class-wide" for the full argument.
 #
 # THE PLACEMENT RULE FOR `players`, stated as a test so the next addition is decided rather than
 # argued: does the tool have a display mode at all, and is that mode its DEFAULT?
@@ -108,33 +105,23 @@
 # identical reason -- vlc can stream/transcode its own output, but the source is still something
 # already opened.
 #
-# THE FOURTH GROUP: `accel`. The one group in this catalogue that is NOT a flat name -> entry map
-# -- it is vendor -> { packages; note; }, the same shape nixgpu's own lib/catalogue.nix uses for
-# the identical reason (capability -> vendor -> [ entries ]), because "which package" genuinely
-# depends on "which silicon" here in a way nothing else in this table does. Selected by a single
-# host-declared `nixmedia.accel = "amd" | "intel" | "nvidia" | null` (modules/nixmedia.nix), never
-# by autodetection -- module evaluation must stay pure and portable (a config evaluated on one
-# machine and deployed to another must not silently pick up the BUILDER's card), and a detected
-# value is a value nobody wrote down. Full argument: the README's "Hardware-keyed declarations are
-# conditional, never class-wide".
-#
-# An EMPTY `packages` list is a correct answer for a vendor cell, not an unfilled one -- this is
-# the property a flat name -> package catalogue cannot express, and the whole reason `accel` needs
-# a shape of its own. `amd` and `nvidia` both resolve to `[ ]` below for a stated reason each (see
-# each cell's own `note`), not for lack of research. Decode is safe to assume class-wide -- every
-# OTHER group's entries degrade to software on any silicon -- but encode is not: the class spans an
-# Xe2-class iGPU with a hardware AV1 encoder and an RDNA2 card with none, and the shipped HandBrake
-# binary carries encoder strings for both regardless of what the card underneath can do. `accel`
-# closes the one real gap (`vainfo` reporting zero profiles without it on Intel silicon); it never
-# carries an encode PRESET, which is host-level, not class-wide -- see the README's class-wide
-# section for why that split matters.
+# A FOURTH GROUP, `accel`, briefly lived here: a VA-API driver (`intel-media-driver`), keyed to
+# GPU vendor -- vendor -> { packages; note; } -- rather than to a flat name list, because "which
+# package" genuinely depended on "which silicon" the way nothing else in this table does. It never
+# belonged: the same package was catalogued a second time by nixgpu's own lib/catalogue.nix
+# (`toolchain.capabilities.videoAccel`, the identical vendor -> [ entries ] shape, opened for the
+# identical reason), and a package whose correct variant depends on the HARDWARE belongs to the
+# hardware repo, not the media-consumption one -- "hardware-keyed" was never a property this
+# catalogue could carry honestly alongside the class-wide groups below it. Removed rather than kept
+# as a duplicate. nixgpu owns VA-API driver selection now, full stop; see that repo's own catalogue
+# for the vendor -> driver mapping.
 #
 # `arch` is the pacman package, `nixpkgs` the attribute (or `null`, see gst-plugin-pipewire above).
 # An `aur` field (default false) exists in this table's shape for a pacman name that lives in the
 # AUR rather than an official repo -- see nixfont's own lib/fonts.nix header for why that
 # distinction is load-bearing: `pacman -S` fails the WHOLE transaction on an AUR name with "target
 # not found", taking every other package in the same converge down with it. No entry needs it
-# today -- every entry across all four groups below is an official-repo package on Arch -- the
+# today -- every entry across all three groups below is an official-repo package on Arch -- the
 # field stays in the shape because the next addition is not guaranteed to be.
 #
 # Every (arch, nixpkgs) pair below was verified against a REAL system, not guessed: `pacman -Si
@@ -145,12 +132,10 @@
 # side. The one deliberate exception is gst-plugin-pipewire's `nixpkgs = null` -- not unverified,
 # verified ABSENT, for the reason given above.
 #
-# `vlc-plugins-all`, `libdvdcss`, `handbrake` and `intel-media-driver` were verified live the same
-# way, 2026-08-07, against this flake's OWN pinned nixpkgs revision
-# (a5cbcfe954791221bfffe2307f7d1a1bf61a871e -- see flake.lock): `pacman -Si` for all four Arch
-# names (including confirming `libva-mesa-driver` no longer exists as a separate package, folded
-# into `mesa`), and a force-evaluating `nix eval` for the three real nixpkgs attributes plus
-# `vlc-plugins-all`'s verified-ABSENT one.
+# `vlc-plugins-all`, `libdvdcss` and `handbrake` were verified live the same way, 2026-08-07,
+# against this flake's OWN pinned nixpkgs revision (a5cbcfe954791221bfffe2307f7d1a1bf61a871e --
+# see flake.lock): `pacman -Si` for all three Arch names, and a force-evaluating `nix eval` for the
+# two real nixpkgs attributes plus `vlc-plugins-all`'s verified-ABSENT one.
 { ... }:
 {
   # ── Players ─────────────────────────────────────────────────────────────────────────────────
@@ -228,32 +213,6 @@
       arch = "handbrake";
       nixpkgs = "handbrake";
       note = "the format-shifter -- re-encodes a programme already on disk into a different container/codec. Its Arch hard-dep on gst-plugins-base, plus optdeps on gst-plugins-good/gst-libav for video previews, already lean on the `plugins` group above. The package itself is class-wide (it bundles SVT-AV1, a software AV1 encode path with no hardware dependency, alongside encoder strings for hardware paths the class's own silicon may or may not back) -- an ENCODE PRESET naming one of those hardware paths is not, and this repo does not carry one. It declares the transcoder; it never declares how to encode.";
-    };
-  };
-
-  # ── Accel: the one hardware-keyed group ────────────────────────────────────────────────────
-  # See the header's "THE FOURTH GROUP" section for the shape, the selection mechanism
-  # (modules/nixmedia.nix's single `nixmedia.accel` option, never autodetected), and why an empty
-  # `packages` list is a correct answer for `amd`/`nvidia` below, not an unfilled one.
-  accel = {
-    amd = {
-      packages = [ ];
-      note = "Mesa's radeonsi VA-API driver ships inside the mesa build itself. Arch's separate libva-mesa-driver package no longer exists -- verified live, `pacman -Si libva-mesa-driver` resolves nothing; folded into mesa. On NixOS, hardware.graphics.enable already installs mesa. Nothing to add, on either plane.";
-    };
-
-    intel = {
-      packages = [
-        {
-          arch = "intel-media-driver";
-          nixpkgs = "intel-media-driver";
-        }
-      ];
-      note = "The iHD driver, Broadwell and newer. The one cell that closes a real gap: without it, `vainfo` on Intel silicon reports no profiles at all. A MOVE out of nixgpu's toolchain.capabilities.videoAccel intel cell, not a duplicate -- one package belongs to one catalogue.";
-    };
-
-    nvidia = {
-      packages = [ ];
-      note = "NVENC/NVDEC are not exposed through VA-API; the proprietary runtime talks to them directly. The third-party nvidia-vaapi-driver shim is not carried, for lack of evidence anything in the class needs it. No host in the class has this silicon -- the cell is empty for a stated reason, not for lack of research.";
     };
   };
 }

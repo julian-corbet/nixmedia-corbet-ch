@@ -18,11 +18,11 @@ let
   lib = pkgs.lib;
   cat = import ../lib/media.nix { };
 
-  # Most groups are name -> { arch; nixpkgs; ... } entries directly (players, plugins, transcode).
-  # `accel` nests one level deeper, vendor -> { packages = [ entries ]; note; } -- see
-  # lib/media.nix's own "THE FOURTH GROUP" section. Detected structurally (an attrset carrying a
-  # `packages` list is the nested shape) rather than by group name, so a future group opened with
-  # either shape needs no change here.
+  # Every group today is name -> { arch; nixpkgs; ... } entries directly (players, plugins,
+  # transcode). A vendor -> { packages = [ entries ]; note; } shape briefly existed here too
+  # (`accel`, removed -- see lib/media.nix's own header); detected structurally (an attrset
+  # carrying a `packages` list is the nested shape) rather than by group name, so a future group
+  # opened with either shape needs no change here.
   entriesOfGroup = group:
     lib.concatMap
       (v: if v ? packages then v.packages else [ v ])

@@ -26,10 +26,6 @@ let
 
   newPlugins = evalWith { plugins = [ "vlc-plugins-all" "libdvdcss" ]; };
   transcodeOnly = evalWith { transcode = [ "handbrake" ]; };
-  accelIntel = evalWith { accel = "intel"; };
-  accelAmd = evalWith { accel = "amd"; };
-  accelNvidia = evalWith { accel = "nvidia"; };
-  accelPlusPlayers = evalWith { players = [ "vlc" ]; accel = "intel"; };
 
   has = list: item: lib.elem item list;
 
@@ -106,31 +102,6 @@ let
 
     "a name never in the transcode catalogue is rejected at eval time, not silently ignored" =
       (builtins.tryEval (builtins.deepSeq (evalWith { transcode = [ "ffmpeg" ]; }).transcode true)).success == false;
-
-    # ── accel: the hardware-keyed group ───────────────────────────────────────────────────
-    "accel = null (the default) selects nothing at all" =
-      (evalWith { }).accel == null && (evalWith { }).accelSelected == [ ] && (evalWith { }).graphicsPackages == [ ];
-
-    "accel = \"intel\" resolves its one package, on the arch list AND the graphics list" =
-      accelIntel.archPackages == [ "intel-media-driver" ]
-      && accelIntel.graphicsPackages == [ "intel-media-driver" ];
-
-    "accel = \"intel\" is deliberately absent from nixosPackages -- it must not reach environment.systemPackages" =
-      !(has accelIntel.nixosPackages "intel-media-driver");
-
-    "accel = \"amd\" is a correct, non-broken answer with ZERO packages -- not an unfilled cell" =
-      accelAmd.archPackages == [ ] && accelAmd.graphicsPackages == [ ] && accelAmd.accelSelected == [ ];
-
-    "accel = \"nvidia\" is the same empty-but-correct shape as amd" =
-      accelNvidia.archPackages == [ ] && accelNvidia.graphicsPackages == [ ];
-
-    "an accel vendor outside the enum is rejected at eval time, not silently ignored" =
-      (builtins.tryEval (builtins.deepSeq (evalWith { accel = "matrox"; }).accel true)).success == false;
-
-    "players and a chosen accel vendor compose together -- vlc plus the vendor's driver, nothing lost either way" =
-      lib.sort builtins.lessThan accelPlusPlayers.archPackages == [ "intel-media-driver" "vlc" ]
-      && accelPlusPlayers.nixosPackages == [ "vlc" ]
-      && accelPlusPlayers.graphicsPackages == [ "intel-media-driver" ];
   };
 
   failed = lib.attrNames (lib.filterAttrs (_: passed: !passed) results);
