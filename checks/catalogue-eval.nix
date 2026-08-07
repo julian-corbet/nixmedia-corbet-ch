@@ -24,6 +24,13 @@ let
   fullPlugins = evalWith { plugins = allPlugins; };
   everything = evalWith { players = [ "vlc" ]; plugins = allPlugins; };
 
+  newPlugins = evalWith { plugins = [ "vlc-plugins-all" "libdvdcss" ]; };
+  transcodeOnly = evalWith { transcode = [ "handbrake" ]; };
+  accelIntel = evalWith { accel = "intel"; };
+  accelAmd = evalWith { accel = "amd"; };
+  accelNvidia = evalWith { accel = "nvidia"; };
+  accelPlusPlayers = evalWith { players = [ "vlc" ]; accel = "intel"; };
+
   has = list: item: lib.elem item list;
 
   results = {
@@ -79,13 +86,59 @@ let
 
     "a name never in the plugins catalogue is rejected at eval time, not silently ignored" =
       (builtins.tryEval (builtins.deepSeq (evalWith { plugins = [ "gst-plugins-ninja" ]; }).plugins true)).success == false;
+
+    # ── plugins: the two proposed-and-now-declared entries ────────────────────────────────
+    "vlc-plugins-all and libdvdcss both resolve, no AUR" =
+      newPlugins.archPackages == [ "vlc-plugins-all" "libdvdcss" ] && newPlugins.aurPackages == [ ];
+
+    "vlc-plugins-all has no nixpkgs equivalent -- surfaces as unavailable, not silently dropped" =
+      newPlugins.unavailableOnNixos == [ "vlc-plugins-all" ];
+
+    "libdvdcss DOES have a nixpkgs equivalent -- only vlc-plugins-all is unavailable" =
+      newPlugins.nixosPackages == [ "libdvdcss" ];
+
+    # ── transcode: the new group ──────────────────────────────────────────────────────────
+    "handbrake resolves as its own group, one entry, no AUR" =
+      transcodeOnly.archPackages == [ "handbrake" ] && transcodeOnly.aurPackages == [ ];
+
+    "handbrake has a nixpkgs equivalent" =
+      transcodeOnly.nixosPackages == [ "handbrake" ] && transcodeOnly.unavailableOnNixos == [ ];
+
+    "a name never in the transcode catalogue is rejected at eval time, not silently ignored" =
+      (builtins.tryEval (builtins.deepSeq (evalWith { transcode = [ "ffmpeg" ]; }).transcode true)).success == false;
+
+    # ── accel: the hardware-keyed group ───────────────────────────────────────────────────
+    "accel = null (the default) selects nothing at all" =
+      (evalWith { }).accel == null && (evalWith { }).accelSelected == [ ] && (evalWith { }).graphicsPackages == [ ];
+
+    "accel = \"intel\" resolves its one package, on the arch list AND the graphics list" =
+      accelIntel.archPackages == [ "intel-media-driver" ]
+      && accelIntel.graphicsPackages == [ "intel-media-driver" ];
+
+    "accel = \"intel\" is deliberately absent from nixosPackages -- it must not reach environment.systemPackages" =
+      !(has accelIntel.nixosPackages "intel-media-driver");
+
+    "accel = \"amd\" is a correct, non-broken answer with ZERO packages -- not an unfilled cell" =
+      accelAmd.archPackages == [ ] && accelAmd.graphicsPackages == [ ] && accelAmd.accelSelected == [ ];
+
+    "accel = \"nvidia\" is the same empty-but-correct shape as amd" =
+      accelNvidia.archPackages == [ ] && accelNvidia.graphicsPackages == [ ];
+
+    "an accel vendor outside the enum is rejected at eval time, not silently ignored" =
+      (builtins.tryEval (builtins.deepSeq (evalWith { accel = "matrox"; }).accel true)).success == false;
+
+    "players and a chosen accel vendor compose together -- vlc plus the vendor's driver, nothing lost either way" =
+      lib.sort builtins.lessThan accelPlusPlayers.archPackages == [ "intel-media-driver" "vlc" ]
+      && accelPlusPlayers.nixosPackages == [ "vlc" ]
+      && accelPlusPlayers.graphicsPackages == [ "intel-media-driver" ];
   };
 
   failed = lib.attrNames (lib.filterAttrs (_: passed: !passed) results);
 in
 if failed == [ ]
 then pkgs.emptyFile
-else throw ''
-  nixmedia: catalogue-eval check failed. Failing assertions:
-  ${lib.concatMapStringsSep "\n" (f: "  - ${f}") failed}
-''
+else
+  throw ''
+    nixmedia: catalogue-eval check failed. Failing assertions:
+    ${lib.concatMapStringsSep "\n" (f: "  - ${f}") failed}
+  ''

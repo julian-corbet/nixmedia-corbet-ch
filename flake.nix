@@ -1,5 +1,5 @@
 {
-  description = "nixmedia — GRAPHICAL media consumption declared: vlc today, an image viewer and a comics reader to come. Terminal-shaped tools (ffmpeg, mpv, cmus, yazi, chafa, timg, yt-dlp) moved to nixsh; not production (nixrecord) and not streaming transport (nixremote, which owns sunshine/moonlight)";
+  description = "nixmedia — media consumption and format-shifting declared, class-wide: players (vlc), the GStreamer/vlc plugin surface, transcode (handbrake), and the one hardware-keyed VA-API driver group (accel). Terminal-shaped tools (ffmpeg, mpv, cmus, yazi, chafa, timg, yt-dlp) moved to nixsh; not production (nixrecord) and not streaming transport (nixremote, which owns sunshine/moonlight)";
 
   # nixpkgs is used ONLY by this flake's own `checks` below (proving the module resolves
   # selections correctly, and separately — see experiments/validate-nixpkgs-names.nix — that
@@ -18,6 +18,9 @@
     {
       # Platform-neutral policy: selections + the resolved package-name lists.
       nixosModules.nixmedia = ./modules/nixmedia.nix;
+      homeManagerModules.nixmedia = ./home/nixmedia.nix;
+      homeManagerModules.default = ./home/nixmedia.nix;
+      homeManagerModules.install = ./home/nixmedia.nix;
 
       # NixOS backend — installs via environment.systemPackages.
       nixosModules.default = ./modules/nixos.nix;
@@ -27,6 +30,7 @@
       # host's own reconciler.
       systemManagerModules.nixmedia = ./modules/arch.nix;
       systemManagerModules.default = ./modules/arch.nix;
+      systemManagerModules.install = ./modules/arch.nix;
 
       lib.catalogue = import ./lib/media.nix { };
 
